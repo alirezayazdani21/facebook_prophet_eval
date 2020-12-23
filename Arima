@@ -1,11 +1,4 @@
 
-#https://blog.exploratory.io/is-prophet-better-than-arima-for-forecasting-time-series-fa9ae08a5851
-#https://medium.com/analytics-vidhya/time-series-forecasting-arima-vs-prophet-5015928e402a
-#https://insightimi.wordpress.com/2020/07/21/financial-market-prediction-arima-vs-lstm-vs-facebook-prophet/
-#https://www.kaggle.com/cdabakoglu/time-series-forecasting-arima-lstm-prophet
-#https://kourentzes.com/forecasting/2017/07/29/benchmarking-facebooks-prophet/
-
-
 library(quantmod)
 library(dplyr)
 library(tidyverse)
