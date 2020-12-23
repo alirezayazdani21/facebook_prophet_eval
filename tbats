@@ -1,0 +1,130 @@
+library(quantmod)
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(forecast)
+library(prophet)
+library(ggplot2)
+options(scipen=999)
+
+View(taylor)
+plot(taylor)
+
+#######################################
+DF<-fortify.zoo(taylor) %>% 
+  mutate(ds= as.POSIXct.Date(Index)) %>% 
+  select(ds,taylor)
+colnames(DF)<-c("ds","y")
+
+ltr<-3500
+
+DF_tr<- DF[1:ltr,]
+DF_te<-DF[(ltr+1):nrow(DF),]
+
+#######################################
+train<-subset(taylor,end=ltr)
+test<-subset(taylor,start=ltr+1)
+
+tbats_tr <- tbats(train)
+tbats_te<-forecast(tbats_tr,h=length(test))
+plot(tbats_te)
+
+#######################################
+prophet_fit<- prophet(DF_tr,growth="linear",mcmc.samples=100)
+#DF_tr$cap<-40000
+#DF_te$cap<-40000
+#prophet_fit<- prophet(DF_tr,growth="logistic")
+
+prophet_tr<- predict(prophet_fit,DF_tr)
+prophet_te<-predict(prophet_fit,DF_te)
+
+#tbats_pred<-rbind.data.frame(fitted(tbats_tr),as.numeric(tbats_te$mean))
+
+###################################
+tr_pred<- DF_tr %>% mutate(sample="tr")
+tr_pred$tbats<-as.numeric(tbats_tr$fitted)
+tr_pred$prophet<-as.numeric(prophet_tr$yhat)
+
+te_pred<- DF_te %>% mutate(sample="te")
+te_pred$tbats<-as.numeric(tbats_te$mean)
+te_pred$prophet<-as.numeric(prophet_te$yhat)
+
+###################################
+all_pred<-rbind.data.frame(tr_pred,te_pred) %>% select(ds,y,arima,prophet) %>% 
+  pivot_longer(!ds,names_to = "model", values_to = "prediction") 
+
+ggplot(all_pred,aes(x=ds, y=prediction, col=model,linetype=model ))+ geom_line()+
+  geom_vline(xintercept = as.numeric(as.Date("2015-01-01")), linetype=4,color = "blue")
+
+#####################################
+accuracy(DF_tr$y,tbats_tr$fitted)
+accuracy(DF_tr$y,prophet_tr$yhat)
+#####################################
+accuracy(DF_te$y,tbats_te$mean)
+accuracy(DF_te$y,prophet_te$yhat)
+
+#####################################
+#####################################
+library(gt)
+library(Metrics)
+
+metrics_grp<-function(x,y){round(rbind(
+  mape(x,y),
+  mae(x,y),
+  rmse(x,y),
+  mase(x,y),
+  mdae(x,y),
+  bias(x,y),
+  rae(x,y),
+  sse(x,y)
+),3)
+}
+
+metrics_df<-rbind.data.frame("MAPE",
+                             "MAE",
+                             "RMSE",
+                             "MASE",
+                             "MDAE",
+                             "BIAS",
+                             "RAE",
+                             "SSE"
+)
+colnames(metrics_df)<-"Metric"
+
+metrics_df<- metrics_df %>% 
+  mutate(Arima_train=metrics_grp(train$y,arima_tr$fitted),
+         Prophet_train=metrics_grp(train$y,prophet_tr$yhat),
+         Arima_test=metrics_grp(test$y,arima_te$mean),
+         Prophet_test=metrics_grp(test$y,prophet_te$yhat)
+  ) 
+
+gt(metrics_df) %>% 
+  tab_header(title = "TBATS vs. Prophet") %>%
+  tab_style(
+    style = cell_text(style = "italic",weight="bold"),
+    locations = cells_body(columns = vars(Metric))
+  ) %>% 
+  tab_style(
+    style = cell_text(style = "italic",weight="bold"),
+    locations = cells_column_labels(columns = 1:5)
+  ) %>% 
+  tab_style(
+    style = cell_fill(color = "gray85"),
+    locations = cells_data(columns = 2:3)
+  ) %>% 
+  tab_style(
+    style = cell_fill(color = "lightblue"),
+    locations = cells_data(columns = 4:5)
+  ) 
+
+#######################################
+acf(tbats_tr$errors)
+acf(prophet_tr$yhat-DF_tr$y)
+
+Box.test(tbats_tr$errors, type = "Ljung")#p-val<5% reject the null of normality
+Box.test(prophet_tr$yhat-DF_tr$y, type = "Ljung")
+#######################################
+
+
+
+
