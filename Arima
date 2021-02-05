@@ -31,7 +31,7 @@ arima_tr<- auto.arima(train$y)
 summary(arima_tr)
 arima_te<-forecast(arima_tr,h=length(test$y))
 
-prophet_fit<- prophet(train,growth="linear")
+#prophet_fit<- prophet(train,growth="linear")
 train$cap<-15
 test$cap<-15
 prophet_fit<- prophet(train,growth="logistic",mcmc.samples=100)
